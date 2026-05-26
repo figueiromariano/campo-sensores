@@ -1,0 +1,7 @@
+# Credenciales y configuración privada
+**/config.h
+**/secrets.h
+
+# Archivos del sistema
+.DS_Store
+*.log
