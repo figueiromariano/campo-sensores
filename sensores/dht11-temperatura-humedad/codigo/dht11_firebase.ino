@@ -40,9 +40,11 @@ void setup() {
   // Sincroniza tiempo
   sincronizarTiempo();
 
-
   // Configurar Firebase
   configurarFirebase();
+
+  // Primera lectura inmediata al iniciar
+  leerYEnviarDatos();
 }
 
 // ─────────────────────────────────────────
@@ -109,6 +111,19 @@ void leerYEnviarDatos() {
   enviarAFirebase(temperatura, humedad);
 }
 
+
+
+// ─────────────────────────────────────────
+String obtenerFecha() {
+  time_t ahora = time(nullptr);
+  struct tm* t = localtime(&ahora);
+  char buffer[25];
+  strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", t);
+  return String(buffer);
+}
+
+
+
 // ─────────────────────────────────────────
 void enviarAFirebase(float temperatura, float humedad) {
   String ruta = "/sensores/dht11/ultima_lectura";
@@ -116,7 +131,7 @@ void enviarAFirebase(float temperatura, float humedad) {
   if (Firebase.setFloat(fbdo, ruta + "/temperatura", temperatura) &&
       Firebase.setFloat(fbdo, ruta + "/humedad", humedad) &&
       Firebase.setString(fbdo, ruta + "/unidad_temp", "C") &&
-      Firebase.setInt(fbdo, ruta + "/timestamp", millis())) {
+      Firebase.setString(fbdo, ruta + "/timestamp", obtenerFecha())) {
     Serial.println("Datos enviados a Firebase OK");
   } else {
     Serial.print("Error Firebase: ");
