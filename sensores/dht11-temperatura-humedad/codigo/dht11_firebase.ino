@@ -2,21 +2,23 @@
  * Proyecto: Agro - Campo Sensores
  * Sensor: DHT11 - Temperatura y Humedad
  * Descripción: Lee temperatura y humedad del sensor DHT11
- *              y envía los datos a Firebase Firestore.
+ *              y envía los datos a Firebase Realtime Database.
  * Hardware: ESP32 WROOM-32 + DHT11 (3 pines)
  * Autor: figueiromariano
  * Repositorio: https://github.com/figueiromariano/campo-sensores
+ * Librería Firebase: FirebaseESP32 by Mobizt
  */
 
 #include <WiFi.h>
-#include <Firebase_ESP_Client.h>
+#include <FirebaseESP32.h>
 #include <DHT.h>
 #include "config.h"
+#include <time.h>
 
 // Objetos Firebase
 FirebaseData fbdo;
 FirebaseAuth auth;
-FirebaseConfig config;
+FirebaseConfig config_fb;
 
 // Objeto sensor
 DHT dht(DHTPIN, DHT11);
@@ -35,6 +37,10 @@ void setup() {
   // Conectar WiFi
   conectarWiFi();
 
+  // Sincroniza tiempo
+  sincronizarTiempo();
+
+
   // Configurar Firebase
   configurarFirebase();
 }
@@ -43,7 +49,6 @@ void setup() {
 void loop() {
   unsigned long ahora = millis();
 
-  // Leer y enviar cada INTERVALO_LECTURA milisegundos
   if (ahora - ultimaLectura >= INTERVALO_LECTURA) {
     ultimaLectura = ahora;
     leerYEnviarDatos();
@@ -70,17 +75,18 @@ void conectarWiFi() {
 
 // ─────────────────────────────────────────
 void configurarFirebase() {
-  config.api_key = API_KEY;
-  config.token_status_callback = tokenStatusCallback;
+  config_fb.api_key = API_KEY;
+  config_fb.database_url = DATABASE_URL;
 
   // Autenticación anónima
-  auth.user.email = "";
-  auth.user.password = "";
+  if (Firebase.signUp(&config_fb, &auth, "", "")) {
+    Serial.println("Firebase autenticado");
+  } else {
+    Serial.printf("Error auth: %s\n", config_fb.signer.signupError.message.c_str());
+  }
 
-  Firebase.begin(&config, &auth);
+  Firebase.begin(&config_fb, &auth);
   Firebase.reconnectWiFi(true);
-
-  Serial.println("Firebase configurado");
 }
 
 // ─────────────────────────────────────────
@@ -88,41 +94,42 @@ void leerYEnviarDatos() {
   float temperatura = dht.readTemperature();
   float humedad = dht.readHumidity();
 
-  // Verificar lectura válida
   if (isnan(temperatura) || isnan(humedad)) {
-    Serial.println("Error: lectura inválida del sensor");
+    Serial.println("Error: lectura invalida del sensor");
     return;
   }
 
   Serial.print("Temperatura: ");
   Serial.print(temperatura);
-  Serial.println(" °C");
+  Serial.println(" C");
   Serial.print("Humedad: ");
   Serial.print(humedad);
   Serial.println(" %");
 
-  // Enviar a Firestore
-  enviarAFirestore(temperatura, humedad);
+  enviarAFirebase(temperatura, humedad);
 }
 
 // ─────────────────────────────────────────
-void enviarAFirestore(float temperatura, float humedad) {
-  FirebaseJson content;
-  String documentPath = "sensores/dht11/lecturas/" + String(millis());
+void enviarAFirebase(float temperatura, float humedad) {
+  String ruta = "/sensores/dht11/ultima_lectura";
 
-  content.set("fields/temperatura/doubleValue", temperatura);
-  content.set("fields/humedad/doubleValue", humedad);
-  content.set("fields/timestamp/stringValue", String(millis()));
-
-  if (Firebase.Firestore.createDocument(
-        &fbdo,
-        PROJECT_ID,
-        "",
-        documentPath.c_str(),
-        content.raw())) {
+  if (Firebase.setFloat(fbdo, ruta + "/temperatura", temperatura) &&
+      Firebase.setFloat(fbdo, ruta + "/humedad", humedad) &&
+      Firebase.setString(fbdo, ruta + "/unidad_temp", "C") &&
+      Firebase.setInt(fbdo, ruta + "/timestamp", millis())) {
     Serial.println("Datos enviados a Firebase OK");
   } else {
     Serial.print("Error Firebase: ");
     Serial.println(fbdo.errorReason());
   }
+}
+
+void sincronizarTiempo() {
+  configTime(-3 * 3600, 0, "pool.ntp.org");
+  Serial.print("Sincronizando tiempo");
+  while (time(nullptr) < 1000000000) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println(" OK");
 }
