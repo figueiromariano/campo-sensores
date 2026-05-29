@@ -34,49 +34,29 @@ Realtime Database.
 
 ## Dependencias
 
-- Librería **DHT sensor library** by Adafruit
-- Librería **Firebase ESP32 Client** by Mobizt (FirebaseESP32.h)
+- Librería DHT sensor library by Adafruit
+- Librería Firebase ESP32 Client by Mobizt (FirebaseESP32.h)
 
-## Funcionamiento
+## Ciclo de funcionamiento
 
-1. El ESP32 se conecta a la red WiFi
-2. Sincroniza el tiempo via NTP (pool.ntp.org, UTC-3)
-3. Se autentica en Firebase de forma anónima
-4. Lee temperatura y humedad del DHT11 cada 5 minutos
-5. Envía los datos a Firebase Realtime Database
-6. En caso de error de lectura informa por puerto serie
+Con deep sleep implementado el ESP32 opera en ciclos de 5 minutos:
 
-## Estructura de datos en Firebase
-sensores/
-dht11/
-ultima_lectura/
-temperatura: 26.10
-humedad: 32.00
-unidad_temp: "C"
-timestamp: 12345678
+- 19 segundos activo: Arranque, WiFi, NTP, Firebase, Lectura, Envío
+- 287 segundos durmiendo: Deep sleep
 
-## Archivos
+Ventajas:
+- 96% del tiempo en sleep, mayor duración de batería
+- Reinicio completo en cada ciclo, evita procesos colgados
+- Timeouts configurables en config.h
 
-| Archivo | Descripción |
-|---------|-------------|
-| `codigo/dht11_firebase.ino` | Código principal |
-| `codigo/config.h.ejemplo` | Plantilla de configuración |
-| `esquema/conexion.png` | Diagrama de conexión (pendiente) |
+## Timeouts
 
-## Configuración
+| Proceso | Tiempo máximo |
+|---------|--------------|
+| Conexión WiFi | 20 segundos |
+| Sincronización NTP | 15 segundos |
 
-Copiás el archivo de ejemplo y completás con tus datos:
-
-```bash
-cp codigo/config.h.ejemplo codigo/dht11_firebase/config.h
-```
-
-Editás config.h con tus credenciales:
-- WIFI_SSID
-- WIFI_PASSWORD
-- API_KEY (Firebase)
-- PROJECT_ID (Firebase)
-- DATABASE_URL (Firebase Realtime Database)
+Si se supera algún timeout el LED parpadea 5 veces rápido y el ESP32 entra en sleep.
 
 ## LED onboard (GPIO2)
 
@@ -85,25 +65,43 @@ No requiere hardware adicional.
 
 | Estado | Señal | Descripción |
 |--------|-------|-------------|
-| Iniciando | Parpadeo rápido (100ms x10) | El sistema está arrancando |
-| Conectando WiFi | Parpadeo medio (500ms x4) | Intentando conectar a la red |
-| Sincronizando tiempo | Parpadeo lento (1000ms x3) | Sincronizando con servidor NTP |
-| Todo OK | LED encendido 2 segundos | Lectura y envío exitosos |
-| Transmitiendo a Firebase | 3 destellos cortos (150ms) | Datos enviados correctamente |
+| Todo OK | 3 destellos cortos (150ms) | Lectura y envío exitosos |
 | Error sensor | 2 destellos largos (800ms) | Lectura inválida del DHT11 |
 | Error Firebase | 5 destellos rápidos (100ms) | Fallo al enviar datos |
+| Error WiFi o NTP | 5 destellos rápidos (100ms) | Timeout de conexión |
 | Deep sleep | LED apagado | ESP32 en modo de bajo consumo |
 
 ### Diagnóstico rápido en el campo
 
-- **Parpadeo rápido sostenido:** el sistema está arrancando
-- **Parpadeo medio:** buscando red WiFi
-- **Parpadeo lento:** sincronizando tiempo
-- **3 destellos + apagado:** todo funcionando correctamente
-- **2 destellos largos:** revisar conexión del sensor DHT11
-- **5 destellos rápidos:** revisar conexión a Firebase
-- **LED apagado:** en sleep o sin energía
+- 3 destellos cortos y apagado: todo funcionando correctamente
+- 2 destellos largos: revisar conexión del sensor DHT11
+- 5 destellos rápidos: revisar WiFi o Firebase
+- LED apagado: en sleep o sin energía
+
+## Archivos
+
+| Archivo | Descripción |
+|---------|-------------|
+| codigo/dht11_firebase.ino | Código principal |
+| codigo/config.h.ejemplo | Plantilla de configuración |
+| esquema/conexion.svg | Diagrama de conexión |
+
+## Configuración
+
+Copiás el archivo de ejemplo y completás con tus datos:
+
+    cp codigo/config.h.ejemplo codigo/dht11_firebase/config.h
+
+Editás config.h con tus credenciales:
+- WIFI_SSID
+- WIFI_PASSWORD
+- API_KEY (Firebase)
+- PROJECT_ID (Firebase)
+- DATABASE_URL (Firebase Realtime Database)
+- TIEMPO_SLEEP (segundos de deep sleep, default 287)
+- TIMEOUT_WIFI (ms, default 20000)
+- TIMEOUT_NTP (ms, default 15000)
 
 ## Estado
 
-✅ Funcionando
+Funcionando
