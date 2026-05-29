@@ -165,12 +165,24 @@ void leerYEnviarDatos() {
 
 // ─────────────────────────────────────────
 void enviarAFirebase(float temperatura, float humedad) {
-  String ruta = "/sensores/dht11/ultima_lectura";
+  String fecha = obtenerFecha();
+  String rutaUltima = "/sensores/dht11/ultima_lectura";
+  String rutaHistorial = "/sensores/dht11/historial/" + fecha;
 
-  if (Firebase.setFloat(fbdo, ruta + "/temperatura", temperatura) &&
-      Firebase.setFloat(fbdo, ruta + "/humedad", humedad) &&
-      Firebase.setString(fbdo, ruta + "/unidad_temp", "C") &&
-      Firebase.setString(fbdo, ruta + "/timestamp", obtenerFecha())) {
+  // Reemplaza espacios y ":" por guiones para la ruta del historial
+  rutaHistorial.replace(" ", "_");
+  rutaHistorial.replace(":", "-");
+
+  bool okUltima = Firebase.setFloat(fbdo, rutaUltima + "/temperatura", temperatura) &&
+                  Firebase.setFloat(fbdo, rutaUltima + "/humedad", humedad) &&
+                  Firebase.setString(fbdo, rutaUltima + "/unidad_temp", "C") &&
+                  Firebase.setString(fbdo, rutaUltima + "/timestamp", fecha);
+
+  bool okHistorial = Firebase.setFloat(fbdo, rutaHistorial + "/temperatura", temperatura) &&
+                     Firebase.setFloat(fbdo, rutaHistorial + "/humedad", humedad) &&
+                     Firebase.setString(fbdo, rutaHistorial + "/unidad_temp", "C");
+
+  if (okUltima && okHistorial) {
     ledParpadeo(3, 150);
     Serial.println("Datos enviados a Firebase OK");
   } else {
