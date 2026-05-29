@@ -12,8 +12,11 @@
 #include <WiFi.h>
 #include <FirebaseESP32.h>
 #include <DHT.h>
-#include "config.h"
 #include <time.h>
+#include "config.h"
+
+// LED onboard
+#define LED_PIN 2
 
 // Objetos Firebase
 FirebaseData fbdo;
@@ -23,38 +26,52 @@ FirebaseConfig config_fb;
 // Objeto sensor
 DHT dht(DHTPIN, DHT11);
 
-// Variables de control de tiempo
-unsigned long ultimaLectura = 0;
+// ─────────────────────────────────────────
+void ledParpadeo(int veces, int duracion) {
+  for (int i = 0; i < veces; i++) {
+    digitalWrite(LED_PIN, HIGH);
+    delay(duracion);
+    digitalWrite(LED_PIN, LOW);
+    delay(duracion);
+  }
+}
+
+// ─────────────────────────────────────────
+void entrarSleep() {
+  Serial.println("Entrando en deep sleep...");
+  Serial.flush();
+  digitalWrite(LED_PIN, LOW);
+  esp_sleep_enable_timer_wakeup((uint64_t)TIEMPO_SLEEP * 1000000ULL);
+  esp_deep_sleep_start();
+}
 
 // ─────────────────────────────────────────
 void setup() {
   Serial.begin(115200);
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
+
+  unsigned long tiempoInicio = millis();
   Serial.println("Iniciando sistema...");
 
-  // Iniciar sensor
   dht.begin();
-
-  // Conectar WiFi
   conectarWiFi();
-
-  // Sincroniza tiempo
   sincronizarTiempo();
-
-  // Configurar Firebase
   configurarFirebase();
 
-  // Primera lectura inmediata al iniciar
+  delay(2000);
   leerYEnviarDatos();
+
+  Serial.print("Tiempo total de ciclo: ");
+  Serial.print(millis() - tiempoInicio);
+  Serial.println(" ms");
+
+  entrarSleep();
 }
 
 // ─────────────────────────────────────────
 void loop() {
-  unsigned long ahora = millis();
-
-  if (ahora - ultimaLectura >= INTERVALO_LECTURA) {
-    ultimaLectura = ahora;
-    leerYEnviarDatos();
-  }
+  // No se usa con deep sleep
 }
 
 // ─────────────────────────────────────────
@@ -64,7 +81,13 @@ void conectarWiFi() {
 
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
+  unsigned long inicio = millis();
   while (WiFi.status() != WL_CONNECTED) {
+    if (millis() - inicio > TIMEOUT_WIFI) {
+      Serial.println("Error: timeout WiFi");
+      ledParpadeo(5, 100);
+      entrarSleep();
+    }
     delay(500);
     Serial.print(".");
   }
@@ -76,19 +99,47 @@ void conectarWiFi() {
 }
 
 // ─────────────────────────────────────────
+void sincronizarTiempo() {
+  configTime(-3 * 3600, 0, "pool.ntp.org");
+  Serial.print("Sincronizando tiempo");
+
+  unsigned long inicio = millis();
+  while (time(nullptr) < 1000000000) {
+    if (millis() - inicio > TIMEOUT_NTP) {
+      Serial.println("Error: timeout NTP");
+      ledParpadeo(5, 100);
+      entrarSleep();
+    }
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println(" OK");
+}
+
+// ─────────────────────────────────────────
 void configurarFirebase() {
   config_fb.api_key = API_KEY;
   config_fb.database_url = DATABASE_URL;
 
-  // Autenticación anónima
   if (Firebase.signUp(&config_fb, &auth, "", "")) {
     Serial.println("Firebase autenticado");
   } else {
     Serial.printf("Error auth: %s\n", config_fb.signer.signupError.message.c_str());
+    ledParpadeo(5, 100);
+    entrarSleep();
   }
 
   Firebase.begin(&config_fb, &auth);
   Firebase.reconnectWiFi(true);
+}
+
+// ─────────────────────────────────────────
+String obtenerFecha() {
+  time_t ahora = time(nullptr);
+  struct tm* t = localtime(&ahora);
+  char buffer[25];
+  strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", t);
+  return String(buffer);
 }
 
 // ─────────────────────────────────────────
@@ -98,6 +149,7 @@ void leerYEnviarDatos() {
 
   if (isnan(temperatura) || isnan(humedad)) {
     Serial.println("Error: lectura invalida del sensor");
+    ledParpadeo(2, 800);
     return;
   }
 
@@ -111,19 +163,6 @@ void leerYEnviarDatos() {
   enviarAFirebase(temperatura, humedad);
 }
 
-
-
-// ─────────────────────────────────────────
-String obtenerFecha() {
-  time_t ahora = time(nullptr);
-  struct tm* t = localtime(&ahora);
-  char buffer[25];
-  strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", t);
-  return String(buffer);
-}
-
-
-
 // ─────────────────────────────────────────
 void enviarAFirebase(float temperatura, float humedad) {
   String ruta = "/sensores/dht11/ultima_lectura";
@@ -132,19 +171,11 @@ void enviarAFirebase(float temperatura, float humedad) {
       Firebase.setFloat(fbdo, ruta + "/humedad", humedad) &&
       Firebase.setString(fbdo, ruta + "/unidad_temp", "C") &&
       Firebase.setString(fbdo, ruta + "/timestamp", obtenerFecha())) {
+    ledParpadeo(3, 150);
     Serial.println("Datos enviados a Firebase OK");
   } else {
+    ledParpadeo(5, 100);
     Serial.print("Error Firebase: ");
     Serial.println(fbdo.errorReason());
   }
-}
-
-void sincronizarTiempo() {
-  configTime(-3 * 3600, 0, "pool.ntp.org");
-  Serial.print("Sincronizando tiempo");
-  while (time(nullptr) < 1000000000) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println(" OK");
 }
