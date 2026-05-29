@@ -78,6 +78,32 @@ Editás config.h con tus credenciales:
 - PROJECT_ID (Firebase)
 - DATABASE_URL (Firebase Realtime Database)
 
+## LED onboard (GPIO2)
+
+El LED azul onboard indica el estado del sistema mediante señales visuales.
+No requiere hardware adicional.
+
+| Estado | Señal | Descripción |
+|--------|-------|-------------|
+| Iniciando | Parpadeo rápido (100ms x10) | El sistema está arrancando |
+| Conectando WiFi | Parpadeo medio (500ms x4) | Intentando conectar a la red |
+| Sincronizando tiempo | Parpadeo lento (1000ms x3) | Sincronizando con servidor NTP |
+| Todo OK | LED encendido 2 segundos | Lectura y envío exitosos |
+| Transmitiendo a Firebase | 3 destellos cortos (150ms) | Datos enviados correctamente |
+| Error sensor | 2 destellos largos (800ms) | Lectura inválida del DHT11 |
+| Error Firebase | 5 destellos rápidos (100ms) | Fallo al enviar datos |
+| Deep sleep | LED apagado | ESP32 en modo de bajo consumo |
+
+### Diagnóstico rápido en el campo
+
+- **Parpadeo rápido sostenido:** el sistema está arrancando
+- **Parpadeo medio:** buscando red WiFi
+- **Parpadeo lento:** sincronizando tiempo
+- **3 destellos + apagado:** todo funcionando correctamente
+- **2 destellos largos:** revisar conexión del sensor DHT11
+- **5 destellos rápidos:** revisar conexión a Firebase
+- **LED apagado:** en sleep o sin energía
+
 ## Estado
 
 ✅ Funcionando
