@@ -1,6 +1,7 @@
 # Credenciales y configuración privada
 **/config.h
 **/secrets.h
+**/redes.json
 
 # Archivos del sistema
 .DS_Store
