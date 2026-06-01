@@ -105,3 +105,41 @@ Editás config.h con tus credenciales:
 ## Estado
 
 Funcionando
+
+## Configuración de redes WiFi
+
+Las redes WiFi se guardan en el archivo `redes.json` en la memoria LittleFS
+del ESP32. No requiere recompilar para cambiar las redes.
+
+### Formato de redes.json
+
+```json
+{
+  "redes": [
+    {"ssid": "red1", "password": "clave1", "prioridad": 1},
+    {"ssid": "red2", "password": "clave2", "prioridad": 2},
+    {"ssid": "red3", "password": "clave3", "prioridad": 3}
+  ]
+}
+```
+
+### Comportamiento
+
+- Intenta conectar en orden de prioridad
+- Si una red no responde en 20 segundos pasa a la siguiente
+- Si ninguna red está disponible entra en deep sleep y reintenta
+- El archivo puede actualizarse desde la interfaz web sin recompilar
+
+### Subir redes.json al ESP32
+
+```bash
+# Crear imagen LittleFS
+~/.arduino15/packages/esp32/tools/mklittlefs/3.0.0-gnu12-dc7f933/mklittlefs \
+  -c codigo/dht11_firebase/data \
+  -s 0x160000 \
+  /tmp/littlefs.bin
+
+# Subir al ESP32
+python3 -m esptool --chip esp32 --port /dev/ttyACM0 --baud 921600 \
+  write-flash 0x290000 /tmp/littlefs.bin
+```
