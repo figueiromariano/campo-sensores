@@ -29,3 +29,12 @@
 - Reiniciar ESP32
 - Ver estado del sensor
 - Otras funcionalidades a futuro
+
+## Nuevos sensores
+- Incorporar sensor de presión barométrica
+
+## App / Interfaz de monitoreo
+- Crear aplicación o interfaz web para ver el estado de los sensores en tiempo real
+- Permitir configuración de sensores desde la interfaz
+- Evaluar si va en este repositorio, en agente-campo o en uno nuevo
+- Conectar con datos de Firebase y con el agente
