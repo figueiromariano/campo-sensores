@@ -6,259 +6,88 @@
  * Hardware: ESP32 WROOM-32 + DHT11 (3 pines)
  * Autor: figueiromariano
  * Repositorio: https://github.com/figueiromariano/campo-sensores
- * Librería Firebase: FirebaseESP32 by Mobizt
  */
 
-#include <WiFi.h>
-#include <FirebaseESP32.h>
 #include <DHT.h>
-#include <time.h>
 #include "config.h"
-#include <LittleFS.h>
-#include <ArduinoJson.h>
+#include "led_utils.h"
+#include "wifi_manager.h"
+#include "firebase_manager.h"
+#include "web_server.h"
 
-// LED onboard
-#define LED_PIN 2
+// ─────────────────────────────────────────
+// Modos de operación
+#define MODO_ACTIVO 0
+#define MODO_CAMPO  1
+#define BOOT_PIN    0
+#define VERSION "1.0"
 
-// Objetos Firebase
-FirebaseData fbdo;
-FirebaseAuth auth;
-FirebaseConfig config_fb;
+int modoActual = MODO_ACTIVO;
+unsigned long tiempoModoActivo = 0;
 
-// Objeto sensor
 DHT dht(DHTPIN, DHT11);
 
 // ─────────────────────────────────────────
-void ledParpadeo(int veces, int duracion) {
-  for (int i = 0; i < veces; i++) {
-    digitalWrite(LED_PIN, HIGH);
-    delay(duracion);
-    digitalWrite(LED_PIN, LOW);
-    delay(duracion);
-  }
-}
-
-// ─────────────────────────────────────────
-void entrarSleep() {
-  Serial.println("Entrando en deep sleep...");
+void entrarModoCampo() {
+  Serial.println("Entrando en modo campo (deep sleep)...");
   Serial.flush();
-  digitalWrite(LED_PIN, LOW);
+  ledApagar();
   esp_sleep_enable_timer_wakeup((uint64_t)TIEMPO_SLEEP * 1000000ULL);
+  esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, 0);
   esp_deep_sleep_start();
 }
 
 // ─────────────────────────────────────────
 void setup() {
   Serial.begin(115200);
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, LOW);
+  ledSetup();
+  pinMode(BOOT_PIN, INPUT_PULLUP);
 
-  unsigned long tiempoInicio = millis();
-  Serial.println("Iniciando sistema...");
+  // Detectar causa del despertar
+  esp_sleep_wakeup_cause_t causa = esp_sleep_get_wakeup_cause();
+  if (causa == ESP_SLEEP_WAKEUP_EXT0) {
+    Serial.println("Despertado por boton BOOT");
+  } else if (causa == ESP_SLEEP_WAKEUP_TIMER) {
+    Serial.println("Despertado por timer");
+  } else {
+    Serial.println("Encendido normal");
+  }
 
   dht.begin();
-  conectarWiFi();
+  if (!conectarWiFi()) entrarModoCampo();
   sincronizarTiempo();
-  configurarFirebase();
+  if (!configurarFirebase()) entrarModoCampo();
 
   delay(2000);
-  leerYEnviarDatos();
+  leerYEnviarDatos(dht);
 
-  Serial.print("Tiempo total de ciclo: ");
-  Serial.print(millis() - tiempoInicio);
-  Serial.println(" ms");
+  // Publicar estado en Firebase
+  publicarEstado("activo", VERSION);
 
-  entrarSleep();
+  // Iniciar modo activo
+  tiempoModoActivo = millis();
+  modoActual = MODO_ACTIVO;
+  Serial.println("Modo activo iniciado. Duracion: 30 minutos.");
+  Serial.print("Servidor web en: http://");
+  Serial.println(WiFi.localIP());
+
+  configurarServidorWeb(dht);
 }
 
 // ─────────────────────────────────────────
 void loop() {
-  // No se usa con deep sleep
-}
-
-
-// ─────────────────────────────────────────
-struct RedWifi {
-  String ssid;
-  String password;
-  int prioridad;
-};
-
-RedWifi redes[10];
-int cantidadRedes = 0;
-
-// ─────────────────────────────────────────
-void cargarRedes() {
-  if (!LittleFS.begin(true)) {
-    Serial.println("Error: no se pudo iniciar LittleFS");
-    return;
+  // Verificar si hay que pasar a modo campo
+  if (millis() - tiempoModoActivo >= DURACION_MODO_ACTIVO) {
+    Serial.println("Fin del modo activo. Pasando a modo campo...");
+    entrarModoCampo();
   }
 
-  File archivo = LittleFS.open("/redes.json", "r");
-  if (!archivo) {
-    Serial.println("Error: no se encontro redes.json");
-    return;
+  // Lectura cada INTERVALO_LECTURA
+  if (millis() - ultimaLectura >= INTERVALO_LECTURA) {
+    ultimaLectura = millis();
+    leerYEnviarDatos(dht);
   }
 
-  JsonDocument doc;
-  DeserializationError error = deserializeJson(doc, archivo);
-  archivo.close();
-
-  if (error) {
-    Serial.println("Error: JSON invalido en redes.json");
-    return;
-  }
-
-  JsonArray arr = doc["redes"].as<JsonArray>();
-  cantidadRedes = 0;
-  for (JsonObject red : arr) {
-    redes[cantidadRedes].ssid     = red["ssid"].as<String>();
-    redes[cantidadRedes].password = red["password"].as<String>();
-    redes[cantidadRedes].prioridad = red["prioridad"].as<int>();
-    cantidadRedes++;
-    if (cantidadRedes >= 10) break;
-  }
-
-  Serial.print("Redes cargadas: ");
-  Serial.println(cantidadRedes);
-}
-
-// ─────────────────────────────────────────
-bool intentarConexion(String ssid, String password) {
-  Serial.print("Intentando: ");
-  Serial.println(ssid);
-
-  WiFi.disconnect();
-  WiFi.begin(ssid.c_str(), password.c_str());
-
-  unsigned long inicio = millis();
-  while (WiFi.status() != WL_CONNECTED) {
-    if (millis() - inicio > TIMEOUT_WIFI) {
-      Serial.println("Timeout");
-      return false;
-    }
-    delay(500);
-    Serial.print(".");
-  }
-
-  Serial.println("");
-  Serial.print("Conectado. IP: ");
-  Serial.println(WiFi.localIP());
-  return true;
-}
-
-// ─────────────────────────────────────────
-void conectarWiFi() {
-  cargarRedes();
-
-  if (cantidadRedes == 0) {
-    Serial.println("Error: sin redes configuradas");
-    ledParpadeo(5, 100);
-    entrarSleep();
-  }
-
-  for (int i = 0; i < cantidadRedes; i++) {
-    if (intentarConexion(redes[i].ssid, redes[i].password)) {
-      return;
-    }
-  }
-
-  Serial.println("Error: no se pudo conectar a ninguna red");
-  ledParpadeo(5, 100);
-  entrarSleep();
-}
-
-
-// ─────────────────────────────────────────
-void sincronizarTiempo() {
-  configTime(-3 * 3600, 0, "pool.ntp.org");
-  Serial.print("Sincronizando tiempo");
-
-  unsigned long inicio = millis();
-  while (time(nullptr) < 1000000000) {
-    if (millis() - inicio > TIMEOUT_NTP) {
-      Serial.println("Error: timeout NTP");
-      ledParpadeo(5, 100);
-      entrarSleep();
-    }
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println(" OK");
-}
-
-// ─────────────────────────────────────────
-void configurarFirebase() {
-  config_fb.api_key = API_KEY;
-  config_fb.database_url = DATABASE_URL;
-
-  if (Firebase.signUp(&config_fb, &auth, "", "")) {
-    Serial.println("Firebase autenticado");
-  } else {
-    Serial.printf("Error auth: %s\n", config_fb.signer.signupError.message.c_str());
-    ledParpadeo(5, 100);
-    entrarSleep();
-  }
-
-  Firebase.begin(&config_fb, &auth);
-  Firebase.reconnectWiFi(true);
-}
-
-// ─────────────────────────────────────────
-String obtenerFecha() {
-  time_t ahora = time(nullptr);
-  struct tm* t = localtime(&ahora);
-  char buffer[25];
-  strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", t);
-  return String(buffer);
-}
-
-// ─────────────────────────────────────────
-void leerYEnviarDatos() {
-  float temperatura = dht.readTemperature();
-  float humedad = dht.readHumidity();
-
-  if (isnan(temperatura) || isnan(humedad)) {
-    Serial.println("Error: lectura invalida del sensor");
-    ledParpadeo(2, 800);
-    return;
-  }
-
-  Serial.print("Temperatura: ");
-  Serial.print(temperatura);
-  Serial.println(" C");
-  Serial.print("Humedad: ");
-  Serial.print(humedad);
-  Serial.println(" %");
-
-  enviarAFirebase(temperatura, humedad);
-}
-
-// ─────────────────────────────────────────
-void enviarAFirebase(float temperatura, float humedad) {
-  String fecha = obtenerFecha();
-  String rutaUltima = "/sensores/dht11/ultima_lectura";
-  String rutaHistorial = "/sensores/dht11/historial/" + fecha;
-
-  // Reemplaza espacios y ":" por guiones para la ruta del historial
-  rutaHistorial.replace(" ", "_");
-  rutaHistorial.replace(":", "-");
-
-  bool okUltima = Firebase.setFloat(fbdo, rutaUltima + "/temperatura", temperatura) &&
-                  Firebase.setFloat(fbdo, rutaUltima + "/humedad", humedad) &&
-                  Firebase.setString(fbdo, rutaUltima + "/unidad_temp", "C") &&
-                  Firebase.setString(fbdo, rutaUltima + "/timestamp", fecha);
-
-  bool okHistorial = Firebase.setFloat(fbdo, rutaHistorial + "/temperatura", temperatura) &&
-                     Firebase.setFloat(fbdo, rutaHistorial + "/humedad", humedad) &&
-                     Firebase.setString(fbdo, rutaHistorial + "/unidad_temp", "C");
-
-  if (okUltima && okHistorial) {
-    ledParpadeo(3, 150);
-    Serial.println("Datos enviados a Firebase OK");
-  } else {
-    ledParpadeo(5, 100);
-    Serial.print("Error Firebase: ");
-    Serial.println(fbdo.errorReason());
-  }
+  // Atender peticiones web
+  manejarServidorWeb();
 }

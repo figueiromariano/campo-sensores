@@ -6,226 +6,88 @@
  * Hardware: ESP32 WROOM-32 + DHT11 (3 pines)
  * Autor: figueiromariano
  * Repositorio: https://github.com/figueiromariano/campo-sensores
- * Librería Firebase: FirebaseESP32 by Mobizt
  */
 
-#include <WiFi.h>
-#include <FirebaseESP32.h>
 #include <DHT.h>
 #include "config.h"
-#include <time.h>
-
+#include "led_utils.h"
+#include "wifi_manager.h"
+#include "firebase_manager.h"
+#include "web_server.h"
 
 // ─────────────────────────────────────────
-// Configuración LED onboard
-#define LED_PIN 2
+// Modos de operación
+#define MODO_ACTIVO 0
+#define MODO_CAMPO  1
+#define BOOT_PIN    0
+#define VERSION "1.0"
 
-void ledParpadeo(int veces, int duracion) {
-  for (int i = 0; i < veces; i++) {
-    digitalWrite(LED_PIN, HIGH);
-    delay(duracion);
-    digitalWrite(LED_PIN, LOW);
-    delay(duracion);
-  }
-}
+int modoActual = MODO_ACTIVO;
+unsigned long tiempoModoActivo = 0;
 
-void ledEstado(String estado) {
-  if (estado == "iniciando") {
-    // Parpadeo rápido continuo
-    for (int i = 0; i < 10; i++) {
-      digitalWrite(LED_PIN, HIGH);
-      delay(100);
-      digitalWrite(LED_PIN, LOW);
-      delay(100);
-    }
-  } else if (estado == "wifi") {
-    // Parpadeo medio
-    for (int i = 0; i < 4; i++) {
-      digitalWrite(LED_PIN, HIGH);
-      delay(500);
-      digitalWrite(LED_PIN, LOW);
-      delay(500);
-    }
-  } else if (estado == "tiempo") {
-    // Parpadeo lento
-    for (int i = 0; i < 3; i++) {
-      digitalWrite(LED_PIN, HIGH);
-      delay(1000);
-      digitalWrite(LED_PIN, LOW);
-      delay(1000);
-    }
-  } else if (estado == "firebase_ok") {
-    // 3 destellos cortos
-    ledParpadeo(3, 150);
-  } else if (estado == "ok") {
-    // LED encendido 2 segundos luego apaga
-    digitalWrite(LED_PIN, HIGH);
-    delay(2000);
-    digitalWrite(LED_PIN, LOW);
-  } else if (estado == "error_sensor") {
-    // 2 destellos largos
-    ledParpadeo(2, 800);
-  } else if (estado == "error_firebase") {
-    // 5 destellos rápidos
-    ledParpadeo(5, 100);
-  } else if (estado == "sleep") {
-    // LED apagado
-    digitalWrite(LED_PIN, LOW);
-  }
-}
-
-
-// Objetos Firebase
-FirebaseData fbdo;
-FirebaseAuth auth;
-FirebaseConfig config_fb;
-
-// Objeto sensor
 DHT dht(DHTPIN, DHT11);
 
-// Variables de control de tiempo
-unsigned long ultimaLectura = 0;
+// ─────────────────────────────────────────
+void entrarModoCampo() {
+  Serial.println("Entrando en modo campo (deep sleep)...");
+  Serial.flush();
+  ledApagar();
+  esp_sleep_enable_timer_wakeup((uint64_t)TIEMPO_SLEEP * 1000000ULL);
+  esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, 0);
+  esp_deep_sleep_start();
+}
 
 // ─────────────────────────────────────────
 void setup() {
   Serial.begin(115200);
+  ledSetup();
+  pinMode(BOOT_PIN, INPUT_PULLUP);
 
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, LOW);
-  ledEstado("iniciando");
+  // Detectar causa del despertar
+  esp_sleep_wakeup_cause_t causa = esp_sleep_get_wakeup_cause();
+  if (causa == ESP_SLEEP_WAKEUP_EXT0) {
+    Serial.println("Despertado por boton BOOT");
+  } else if (causa == ESP_SLEEP_WAKEUP_TIMER) {
+    Serial.println("Despertado por timer");
+  } else {
+    Serial.println("Encendido normal");
+  }
 
-  unsigned long tiempoInicio = millis();
-
-  Serial.println("Iniciando sistema...");
-
-  // Iniciar sensor
   dht.begin();
-
-  // Conectar WiFi
-  conectarWiFi();
-
-  // Sincroniza tiempo
+  if (!conectarWiFi()) entrarModoCampo();
   sincronizarTiempo();
+  if (!configurarFirebase()) entrarModoCampo();
 
-  // Configurar Firebase
-  configurarFirebase();
-
-  // Espera a que el sensor se estabilice
   delay(2000);
+  leerYEnviarDatos(dht);
 
-  // Primera lectura inmediata al iniciar
-  leerYEnviarDatos();
+  // Publicar estado en Firebase
+  publicarEstado("activo", VERSION);
 
-  ledEstado("ok");
+  // Iniciar modo activo
+  tiempoModoActivo = millis();
+  modoActual = MODO_ACTIVO;
+  Serial.println("Modo activo iniciado. Duracion: 30 minutos.");
+  Serial.print("Servidor web en: http://");
+  Serial.println(WiFi.localIP());
 
-  Serial.print("Tiempo total de inicio: ");
-  Serial.print(millis() - tiempoInicio);
-  Serial.println(" ms");
+  configurarServidorWeb(dht);
 }
 
 // ─────────────────────────────────────────
 void loop() {
-  unsigned long ahora = millis();
-
-  if (ahora - ultimaLectura >= INTERVALO_LECTURA) {
-    ultimaLectura = ahora;
-    leerYEnviarDatos();
-  }
-}
-
-// ─────────────────────────────────────────
-void conectarWiFi() {
-  ledEstado("wifi");
-  Serial.print("Conectando a WiFi: ");
-  Serial.println(WIFI_SSID);
-
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
+  // Verificar si hay que pasar a modo campo
+  if (millis() - tiempoModoActivo >= DURACION_MODO_ACTIVO) {
+    Serial.println("Fin del modo activo. Pasando a modo campo...");
+    entrarModoCampo();
   }
 
-  Serial.println("");
-  Serial.println("WiFi conectado");
-  Serial.print("IP: ");
-  Serial.println(WiFi.localIP());
-}
-
-// ─────────────────────────────────────────
-void configurarFirebase() {
-  config_fb.api_key = API_KEY;
-  config_fb.database_url = DATABASE_URL;
-
-  // Autenticación anónima
-  if (Firebase.signUp(&config_fb, &auth, "", "")) {
-    Serial.println("Firebase autenticado");
-  } else {
-    Serial.printf("Error auth: %s\n", config_fb.signer.signupError.message.c_str());
+  // Lectura cada INTERVALO_LECTURA
+  if (millis() - ultimaLectura >= INTERVALO_LECTURA) {
+    ultimaLectura = millis();
+    leerYEnviarDatos(dht);
   }
 
-  Firebase.begin(&config_fb, &auth);
-  Firebase.reconnectWiFi(true);
-}
-
-// ─────────────────────────────────────────
-void leerYEnviarDatos() {
-  float temperatura = dht.readTemperature();
-  float humedad = dht.readHumidity();
-
-  if (isnan(temperatura) || isnan(humedad)) {
-    ledEstado("error_sensor");
-    Serial.println("Error: lectura invalida del sensor");
-    return;
-  }
-
-  Serial.print("Temperatura: ");
-  Serial.print(temperatura);
-  Serial.println(" C");
-  Serial.print("Humedad: ");
-  Serial.print(humedad);
-  Serial.println(" %");
-
-  enviarAFirebase(temperatura, humedad);
-}
-
-
-
-// ─────────────────────────────────────────
-String obtenerFecha() {
-  time_t ahora = time(nullptr);
-  struct tm* t = localtime(&ahora);
-  char buffer[25];
-  strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", t);
-  return String(buffer);
-}
-
-
-
-// ─────────────────────────────────────────
-void enviarAFirebase(float temperatura, float humedad) {
-  String ruta = "/sensores/dht11/ultima_lectura";
-
-  if (Firebase.setFloat(fbdo, ruta + "/temperatura", temperatura) &&
-      Firebase.setFloat(fbdo, ruta + "/humedad", humedad) &&
-      Firebase.setString(fbdo, ruta + "/unidad_temp", "C") &&
-      Firebase.setString(fbdo, ruta + "/timestamp", obtenerFecha())) {
-    ledEstado("firebase_ok");
-    Serial.println("Datos enviados a Firebase OK");
-  } else {
-    ledEstado("error_firebase");
-    Serial.print("Error Firebase: ");
-    Serial.println(fbdo.errorReason());
-  }
-}
-
-void sincronizarTiempo() {
-  ledEstado("tiempo");
-  configTime(-3 * 3600, 0, "pool.ntp.org");
-  Serial.print("Sincronizando tiempo");
-  while (time(nullptr) < 1000000000) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println(" OK");
+  // Atender peticiones web
+  manejarServidorWeb();
 }

@@ -1,0 +1,7 @@
+{
+  "redes": [
+    {"ssid": "tu_red_1", "password": "tu_clave_1", "prioridad": 1},
+    {"ssid": "tu_red_2", "password": "tu_clave_2", "prioridad": 2},
+    {"ssid": "tu_red_3", "password": "tu_clave_3", "prioridad": 3}
+  ]
+}
