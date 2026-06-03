@@ -1,8 +1,3 @@
-/*
- * web_server.h
- * Servidor web para configuración y monitoreo del sensor
- */
-
 #ifndef WEB_SERVER_H
 #define WEB_SERVER_H
 
@@ -15,7 +10,6 @@ WebServer server(80);
 extern int modoActual;
 extern unsigned long tiempoModoActivo;
 
-// ─────────────────────────────────────────
 String paginaBase(String contenido) {
   String html = "<!DOCTYPE html><html><head>";
   html += "<meta charset='UTF-8'>";
@@ -37,10 +31,8 @@ String paginaBase(String contenido) {
   return html;
 }
 
-// ─────────────────────────────────────────
 void configurarServidorWeb(DHT &dht) {
 
-  // Página principal
   server.on("/", [&dht]() {
     unsigned long tiempoRestante = 0;
     if (millis() < tiempoModoActivo + DURACION_MODO_ACTIVO) {
@@ -66,21 +58,18 @@ void configurarServidorWeb(DHT &dht) {
     server.send(200, "text/html", paginaBase(contenido));
   });
 
-  // Lectura manual
   server.on("/lectura", [&dht]() {
     leerYEnviarDatos(dht);
     server.sendHeader("Location", "/");
     server.send(303);
   });
 
-  // Reiniciar
   server.on("/reiniciar", []() {
     server.send(200, "text/html", paginaBase("<h1>Reiniciando...</h1><p>El dispositivo se reiniciara en 2 segundos.</p>"));
     delay(2000);
     ESP.restart();
   });
 
-  // Ver y editar redes
   server.on("/redes", []() {
     File archivo = LittleFS.open("/redes.json", "r");
     String contenido = "";
@@ -89,16 +78,30 @@ void configurarServidorWeb(DHT &dht) {
       archivo.close();
     }
     String html = "<h1>Redes WiFi</h1>";
-    html += "<form action='/guardar_redes' method='POST'>";
-    html += "<div class='label'>Editá el archivo redes.json:</div>";
-    html += "<textarea name='json'>" + contenido + "</textarea><br>";
+    html += "<div id='error' style='color:red;margin:8px 0;display:none'></div>";
+    html += "<form id='frm' action='/guardar_redes' method='POST'>";
+    html += "<div class='label'>Edita el archivo redes.json:</div>";
+    html += "<textarea id='json' name='json'>" + contenido + "</textarea><br>";
     html += "<input type='submit' value='Guardar y reiniciar'>";
     html += "</form>";
     html += "<button onclick=\"location.href='/'\">Volver</button>";
+    html += "<script>";
+    html += "document.getElementById('frm').onsubmit=function(e){";
+    html += "  var txt=document.getElementById('json').value;";
+    html += "  try{JSON.parse(txt);}";
+    html += "  catch(err){";
+    html += "    e.preventDefault();";
+    html += "    var el=document.getElementById('error');";
+    html += "    el.style.display='block';";
+    html += "    el.innerText='JSON invalido: '+err.message;";
+    html += "    return false;";
+    html += "  }";
+    html += "  return true;";
+    html += "};";
+    html += "</script>";
     server.send(200, "text/html", paginaBase(html));
   });
 
-  // Guardar redes
   server.on("/guardar_redes", HTTP_POST, []() {
     if (server.hasArg("json")) {
       File archivo = LittleFS.open("/redes.json", "w");
@@ -116,7 +119,6 @@ void configurarServidorWeb(DHT &dht) {
   server.begin();
 }
 
-// ─────────────────────────────────────────
 void manejarServidorWeb() {
   server.handleClient();
 }
