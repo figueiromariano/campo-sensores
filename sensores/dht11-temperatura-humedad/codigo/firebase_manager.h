@@ -115,13 +115,15 @@ void leerYEnviarDatos(DHT &dht) {
 void publicarEstado(String modo, String version) {
   String ruta = "/dispositivos/dht11_esp32/estado";
 
-  Firebase.setString(fbdo, ruta + "/ip",             WiFi.localIP().toString());
-  Firebase.setString(fbdo, ruta + "/red",            WiFi.SSID());
-  Firebase.setString(fbdo, ruta + "/modo",           modo);
+  Firebase.setString(fbdo, ruta + "/ip",              WiFi.localIP().toString());
+  Firebase.setString(fbdo, ruta + "/red",             WiFi.SSID());
+  Firebase.setString(fbdo, ruta + "/modo",            modo);
   Firebase.setString(fbdo, ruta + "/ultimo_arranque", obtenerFecha());
-  Firebase.setString(fbdo, ruta + "/version",        version);
+  Firebase.setString(fbdo, ruta + "/version",         version);
+  Firebase.setString(fbdo, ruta + "/ultimo_cambio",   obtenerFecha());
 
-  Serial.println("Estado publicado en Firebase");
+  Serial.print("Estado publicado: ");
+  Serial.println(modo);
 }
 
 #endif

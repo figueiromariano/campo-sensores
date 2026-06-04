@@ -29,6 +29,8 @@ DHT dht(DHTPIN, DHT11);
 
 // ─────────────────────────────────────────
 void entrarModoCampo() {
+  Serial.println("Fin del modo activo. Pasando a modo campo...");
+  publicarEstado("campo", VERSION);
   Serial.println("Entrando en modo campo (deep sleep)...");
   Serial.flush();
   ledApagar();
