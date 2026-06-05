@@ -38,3 +38,9 @@
 - Permitir configuración de sensores desde la interfaz
 - Evaluar si va en este repositorio, en agente-campo o en uno nuevo
 - Conectar con datos de Firebase y con el agente
+
+## Sensores futuros
+- Presión barométrica
+- Precipitaciones (pluviómetro) - muy importante
+- Velocidad y dirección del viento
+- Radiación UV
