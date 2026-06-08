@@ -65,6 +65,7 @@ void setup() {
 
   // Publicar estado en Firebase
   publicarEstado("activo", VERSION);
+  publicarSistema();
 
   // Iniciar modo activo
   tiempoModoActivo = millis();

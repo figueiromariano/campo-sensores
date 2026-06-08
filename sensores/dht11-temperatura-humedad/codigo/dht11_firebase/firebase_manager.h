@@ -10,6 +10,7 @@
 #include <time.h>
 #include "led_utils.h"
 #include "config.h"
+#include "esp_system.h"
 
 FirebaseData fbdo;
 FirebaseAuth auth;
@@ -115,13 +116,52 @@ void leerYEnviarDatos(DHT &dht) {
 void publicarEstado(String modo, String version) {
   String ruta = "/dispositivos/dht11_esp32/estado";
 
-  Firebase.setString(fbdo, ruta + "/ip",             WiFi.localIP().toString());
-  Firebase.setString(fbdo, ruta + "/red",            WiFi.SSID());
-  Firebase.setString(fbdo, ruta + "/modo",           modo);
+  Firebase.setString(fbdo, ruta + "/ip",              WiFi.localIP().toString());
+  Firebase.setString(fbdo, ruta + "/red",             WiFi.SSID());
+  Firebase.setString(fbdo, ruta + "/modo",            modo);
   Firebase.setString(fbdo, ruta + "/ultimo_arranque", obtenerFecha());
-  Firebase.setString(fbdo, ruta + "/version",        version);
+  Firebase.setString(fbdo, ruta + "/version",         version);
+  Firebase.setString(fbdo, ruta + "/ultimo_cambio",   obtenerFecha());
 
-  Serial.println("Estado publicado en Firebase");
+  Serial.print("Estado publicado: ");
+  Serial.println(modo);
+}
+
+// ─────────────────────────────────────────
+void publicarSistema() {
+  String ruta = "/dispositivos/dht11_esp32/sistema";
+
+  // Temperatura interna del chip
+  #ifdef CONFIG_IDF_TARGET_ESP32
+  float temp_chip = temperatureRead();
+  Firebase.setFloat(fbdo, ruta + "/temp_chip", temp_chip);
+  #endif
+
+  // Memoria RAM
+  uint32_t ram_libre = esp_get_free_heap_size();
+  uint32_t ram_total = ESP.getHeapSize();
+  Firebase.setInt(fbdo, ruta + "/ram_libre", ram_libre);
+  Firebase.setInt(fbdo, ruta + "/ram_total", ram_total);
+
+  // Señal WiFi
+  int rssi = WiFi.RSSI();
+  Firebase.setInt(fbdo, ruta + "/rssi", rssi);
+
+  // Uptime en segundos
+  Firebase.setInt(fbdo, ruta + "/uptime", millis() / 1000);
+
+  // Causa del despertar
+  esp_sleep_wakeup_cause_t causa = esp_sleep_get_wakeup_cause();
+  String causa_str = "desconocido";
+  if (causa == ESP_SLEEP_WAKEUP_EXT0)   causa_str = "boton";
+  if (causa == ESP_SLEEP_WAKEUP_TIMER)  causa_str = "timer";
+  if (causa == ESP_SLEEP_WAKEUP_UNDEFINED) causa_str = "encendido";
+  Firebase.setString(fbdo, ruta + "/causa_reset", causa_str);
+
+  // MAC
+  Firebase.setString(fbdo, ruta + "/mac", WiFi.macAddress());
+
+  Serial.println("Sistema publicado en Firebase");
 }
 
 #endif

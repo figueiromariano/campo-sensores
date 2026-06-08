@@ -29,6 +29,8 @@ DHT dht(DHTPIN, DHT11);
 
 // ─────────────────────────────────────────
 void entrarModoCampo() {
+  Serial.println("Fin del modo activo. Pasando a modo campo...");
+  publicarEstado("campo", VERSION);
   Serial.println("Entrando en modo campo (deep sleep)...");
   Serial.flush();
   ledApagar();
@@ -63,6 +65,7 @@ void setup() {
 
   // Publicar estado en Firebase
   publicarEstado("activo", VERSION);
+  publicarSistema();
 
   // Iniciar modo activo
   tiempoModoActivo = millis();
