@@ -44,3 +44,11 @@
 - Precipitaciones (pluviómetro) - muy importante
 - Velocidad y dirección del viento
 - Radiación UV
+
+## OTA - Actualización inalámbrica del firmware
+- Implementar OTA en el ESP32 para poder actualizar el código por WiFi
+- Útil cuando el dispositivo está instalado en el campo sin acceso físico
+- Opciones a evaluar:
+  - OTA básico de Arduino (ArduinoOTA)
+  - OTA desde la interfaz web del dispositivo
+  - OTA desde el panel de control
