@@ -1,11 +1,28 @@
-// Configuración WiFi
-#define WIFI_SSID "tu_red_wifi"
-#define WIFI_PASSWORD "tu_contraseña_wifi"
+// Configuracion WiFi (no se usa, las redes van en data/redes.json)
+#define WIFI_SSID ""
+#define WIFI_PASSWORD ""
 
-// Configuración Firebase
-#define API_KEY "tu_api_key"
-#define PROJECT_ID "tu_project_id"
+// Configuracion Firebase
+#define API_KEY "tu-api-key"
+#define DATABASE_URL "https://tu-proyecto.firebaseio.com/"
+#define PROJECT_ID "tu-project-id"
 
-// Configuración del sensor
+// Configuracion del sensor
 #define DHTPIN 4
-#define INTERVALO_LECTURA 300000  // 5 minutos en milisegundos
+#define INTERVALO_LECTURA 300000  // 5 minutos
+//#define INTERVALO_LECTURA 10000  // 10 segundos para pruebas
+
+// Tiempos de espera maximos
+#define TIMEOUT_WIFI 20000      // 20 segundos
+#define TIMEOUT_NTP  15000      // 15 segundos
+
+// Deep sleep
+#define TIEMPO_SLEEP 287        // segundos (5 min menos arranque)
+#define DURACION_MODO_ACTIVO 1800000  // 30 minutos en milisegundos
+
+// Identificacion del dispositivo
+#define NOMBRE_DISPOSITIVO "nombre-del-dispositivo"
+#define VERSION "1.0"
+
+// OTA - Actualizacion inalambrica
+#define OTA_PASSWORD "tu-password-ota"
