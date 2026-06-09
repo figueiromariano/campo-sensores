@@ -14,6 +14,7 @@
 #include "wifi_manager.h"
 #include "firebase_manager.h"
 #include "web_server.h"
+#include <ArduinoOTA.h>
 
 // ─────────────────────────────────────────
 // Modos de operación
@@ -40,8 +41,37 @@ void entrarModoCampo() {
 }
 
 // ─────────────────────────────────────────
+void configurarOTA() {
+  ArduinoOTA.setHostname(NOMBRE_DISPOSITIVO);
+  ArduinoOTA.setPassword(OTA_PASSWORD);
+
+  ArduinoOTA.onStart([]() {
+    Serial.println("OTA: iniciando actualizacion...");
+    ledParpadeo(3, 100);
+  });
+
+  ArduinoOTA.onEnd([]() {
+    Serial.println("OTA: actualizacion completada!");
+    ledParpadeo(5, 100);
+  });
+
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("OTA: %u%%\n", (progress / (total / 100)));
+  });
+
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("OTA error: %u\n", error);
+    ledParpadeo(5, 200);
+  });
+
+  ArduinoOTA.begin();
+  Serial.println("OTA listo");
+}
+
+// ─────────────────────────────────────────
 void setup() {
   Serial.begin(115200);
+  Serial.println("v1.1 - OTA habilitado");
   ledSetup();
   pinMode(BOOT_PIN, INPUT_PULLUP);
 
@@ -75,10 +105,13 @@ void setup() {
   Serial.println(WiFi.localIP());
 
   configurarServidorWeb(dht);
+  configurarOTA();
 }
 
 // ─────────────────────────────────────────
 void loop() {
+   ArduinoOTA.handle();
+
   // Verificar si hay que pasar a modo campo
   if (millis() - tiempoModoActivo >= DURACION_MODO_ACTIVO) {
     Serial.println("Fin del modo activo. Pasando a modo campo...");
