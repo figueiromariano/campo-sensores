@@ -11,6 +11,7 @@
 #include "led_utils.h"
 #include "config.h"
 #include "esp_system.h"
+#include <Adafruit_BMP085.h>
 
 FirebaseData fbdo;
 FirebaseAuth auth;
@@ -162,6 +163,47 @@ void publicarSistema() {
   Firebase.setString(fbdo, ruta + "/mac", WiFi.macAddress());
 
   Serial.println("Sistema publicado en Firebase");
+}
+
+// ─────────────────────────────────────────
+void leerYEnviarBMP180(Adafruit_BMP085 &bmp) {
+  float presion     = bmp.readPressure() / 100.0;  // Pa a hPa
+  float temperatura = bmp.readTemperature();
+  float altitud     = bmp.readAltitude();
+
+  Serial.print("Presion: ");
+  Serial.print(presion);
+  Serial.println(" hPa");
+  Serial.print("Temp BMP: ");
+  Serial.print(temperatura);
+  Serial.println(" C");
+  Serial.print("Altitud: ");
+  Serial.print(altitud);
+  Serial.println(" m");
+
+  String ruta         = "/sensores/bmp180/ultima_lectura";
+  String rutaHistorial = "/sensores/bmp180/historial/" + obtenerFecha();
+  rutaHistorial.replace(" ", "_");
+  rutaHistorial.replace(":", "-");
+
+  String fecha = obtenerFecha();
+
+  bool okUltima = Firebase.setFloat(fbdo, ruta + "/presion",     presion) &&
+                  Firebase.setFloat(fbdo, ruta + "/temperatura",  temperatura) &&
+                  Firebase.setFloat(fbdo, ruta + "/altitud",      altitud) &&
+                  Firebase.setString(fbdo, ruta + "/unidad_presion", "hPa") &&
+                  Firebase.setString(fbdo, ruta + "/timestamp",   fecha);
+
+  bool okHistorial = Firebase.setFloat(fbdo, rutaHistorial + "/presion",    presion) &&
+                     Firebase.setFloat(fbdo, rutaHistorial + "/temperatura", temperatura) &&
+                     Firebase.setFloat(fbdo, rutaHistorial + "/altitud",     altitud);
+
+  if (okUltima && okHistorial) {
+    Serial.println("BMP180 enviado a Firebase OK");
+  } else {
+    Serial.print("Error BMP180 Firebase: ");
+    Serial.println(fbdo.errorReason());
+  }
 }
 
 #endif

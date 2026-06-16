@@ -15,6 +15,9 @@
 #include "firebase_manager.h"
 #include "web_server.h"
 #include <ArduinoOTA.h>
+#include <Wire.h>
+#include <Adafruit_BMP085.h>
+
 
 // ─────────────────────────────────────────
 // Modos de operación
@@ -27,6 +30,8 @@ int modoActual = MODO_ACTIVO;
 unsigned long tiempoModoActivo = 0;
 
 DHT dht(DHTPIN, DHT11);
+Adafruit_BMP085 bmp;
+bool bmp_disponible = false;
 
 // ─────────────────────────────────────────
 void entrarModoCampo() {
@@ -41,37 +46,8 @@ void entrarModoCampo() {
 }
 
 // ─────────────────────────────────────────
-void configurarOTA() {
-  ArduinoOTA.setHostname(NOMBRE_DISPOSITIVO);
-  ArduinoOTA.setPassword(OTA_PASSWORD);
-
-  ArduinoOTA.onStart([]() {
-    Serial.println("OTA: iniciando actualizacion...");
-    ledParpadeo(3, 100);
-  });
-
-  ArduinoOTA.onEnd([]() {
-    Serial.println("OTA: actualizacion completada!");
-    ledParpadeo(5, 100);
-  });
-
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    Serial.printf("OTA: %u%%\n", (progress / (total / 100)));
-  });
-
-  ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("OTA error: %u\n", error);
-    ledParpadeo(5, 200);
-  });
-
-  ArduinoOTA.begin();
-  Serial.println("OTA listo");
-}
-
-// ─────────────────────────────────────────
 void setup() {
   Serial.begin(115200);
-  Serial.println("v1.1 - OTA habilitado");
   ledSetup();
   pinMode(BOOT_PIN, INPUT_PULLUP);
 
@@ -90,6 +66,16 @@ void setup() {
   sincronizarTiempo();
   if (!configurarFirebase()) entrarModoCampo();
 
+// Inicializar BMP180
+  Wire.begin(21, 22);
+  if (bmp.begin()) {
+    bmp_disponible = true;
+    Serial.println("BMP180 inicializado OK");
+  } else {
+    bmp_disponible = false;
+    Serial.println("BMP180 no encontrado");
+  }
+
   delay(2000);
   leerYEnviarDatos(dht);
 
@@ -105,13 +91,9 @@ void setup() {
   Serial.println(WiFi.localIP());
 
   configurarServidorWeb(dht);
-  configurarOTA();
 }
 
-// ─────────────────────────────────────────
 void loop() {
-   ArduinoOTA.handle();
-
   // Verificar si hay que pasar a modo campo
   if (millis() - tiempoModoActivo >= DURACION_MODO_ACTIVO) {
     Serial.println("Fin del modo activo. Pasando a modo campo...");
@@ -122,8 +104,14 @@ void loop() {
   if (millis() - ultimaLectura >= INTERVALO_LECTURA) {
     ultimaLectura = millis();
     leerYEnviarDatos(dht);
+
+    // Leer BMP180 si esta disponible
+    if (bmp_disponible) {
+      leerYEnviarBMP180(bmp);
+    }
   }
 
-  // Atender peticiones web
+  // Atender peticiones web y OTA
   manejarServidorWeb();
+  ArduinoOTA.handle();
 }

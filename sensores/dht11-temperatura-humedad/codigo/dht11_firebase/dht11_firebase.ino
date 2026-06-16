@@ -14,6 +14,10 @@
 #include "wifi_manager.h"
 #include "firebase_manager.h"
 #include "web_server.h"
+#include <ArduinoOTA.h>
+#include <Wire.h>
+#include <Adafruit_BMP085.h>
+
 
 // ─────────────────────────────────────────
 // Modos de operación
@@ -26,6 +30,8 @@ int modoActual = MODO_ACTIVO;
 unsigned long tiempoModoActivo = 0;
 
 DHT dht(DHTPIN, DHT11);
+Adafruit_BMP085 bmp;
+bool bmp_disponible = false;
 
 // ─────────────────────────────────────────
 void entrarModoCampo() {
@@ -60,6 +66,16 @@ void setup() {
   sincronizarTiempo();
   if (!configurarFirebase()) entrarModoCampo();
 
+// Inicializar BMP180
+  Wire.begin(21, 22);
+  if (bmp.begin()) {
+    bmp_disponible = true;
+    Serial.println("BMP180 inicializado OK");
+  } else {
+    bmp_disponible = false;
+    Serial.println("BMP180 no encontrado");
+  }
+
   delay(2000);
   leerYEnviarDatos(dht);
 
@@ -77,7 +93,6 @@ void setup() {
   configurarServidorWeb(dht);
 }
 
-// ─────────────────────────────────────────
 void loop() {
   // Verificar si hay que pasar a modo campo
   if (millis() - tiempoModoActivo >= DURACION_MODO_ACTIVO) {
@@ -89,8 +104,14 @@ void loop() {
   if (millis() - ultimaLectura >= INTERVALO_LECTURA) {
     ultimaLectura = millis();
     leerYEnviarDatos(dht);
+
+    // Leer BMP180 si esta disponible
+    if (bmp_disponible) {
+      leerYEnviarBMP180(bmp);
+    }
   }
 
-  // Atender peticiones web
+  // Atender peticiones web y OTA
   manejarServidorWeb();
+  ArduinoOTA.handle();
 }
