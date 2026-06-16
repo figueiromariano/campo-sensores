@@ -52,3 +52,8 @@
   - OTA básico de Arduino (ArduinoOTA)
   - OTA desde la interfaz web del dispositivo
   - OTA desde el panel de control
+
+## Historial unificado de sensores
+- Crear historial combinado con datos de todos los sensores (DHT11 + BMP180)
+- Incluir: temperatura, humedad, presion, altitud, timestamp
+- Disponible en Firebase, bot y panel
