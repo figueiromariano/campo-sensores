@@ -57,3 +57,8 @@
 - Crear historial combinado con datos de todos los sensores (DHT11 + BMP180)
 - Incluir: temperatura, humedad, presion, altitud, timestamp
 - Disponible en Firebase, bot y panel
+
+## Calidad y robustez
+- Validar lecturas del DHT11 (filtrar valores fuera de rango antes de enviar)
+- Reintentar envio a Firebase 2-3 veces si falla
+- Guardar lecturas en LittleFS cuando no hay WiFi y sincronizar al reconectar
