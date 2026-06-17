@@ -62,3 +62,7 @@
 - Validar lecturas del DHT11 (filtrar valores fuera de rango antes de enviar)
 - Reintentar envio a Firebase 2-3 veces si falla
 - Guardar lecturas en LittleFS cuando no hay WiFi y sincronizar al reconectar
+
+## Generales del proyecto
+- Backup automatico periodico de datos de Firebase a archivo
+- Script de verificacion: comprobar que Firebase responde antes de cada sesion
