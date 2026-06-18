@@ -126,3 +126,30 @@ Ver install.sh en la raiz del repositorio.
 ## Estado
 
 Funcionando con OTA habilitado
+
+## Sensor BMP180 (presion y temperatura)
+
+Conectado por I2C junto al DHT11 en el mismo ESP32.
+
+### Conexion
+
+| BMP180 | ESP32 |
+|--------|-------|
+| VCC    | 3.3V  |
+| GND    | GND   |
+| SCL    | GPIO22 |
+| SDA    | GPIO21 |
+
+### Datos publicados en Firebase
+
+    sensores/
+      bmp180/
+        ultima_lectura/
+          presion, temperatura, altitud, unidad_presion, timestamp
+        historial/
+          FECHA_HORA/
+            presion, temperatura, altitud
+
+### Estado
+
+Probado y funcionando (verificado en campo, lecturas reales confirmadas en Firebase)
