@@ -66,3 +66,39 @@
 ## Generales del proyecto
 - Backup automatico periodico de datos de Firebase a archivo
 - Script de verificacion: comprobar que Firebase responde antes de cada sesion
+
+## Configuracion centralizada de credenciales
+- Las credenciales del ESP32 (API_KEY, DATABASE_URL, OTA_PASSWORD, etc)
+  actualmente se guardan localmente en config.h y se pierden al cambiar equipo
+- Evaluar opciones para centralizar la configuracion:
+  - Repositorio privado solo para configs (config-agro)
+  - Firebase Remote Config para leer credenciales desde la nube
+  - Script que descargue config.h desde un servidor seguro al compilar
+  - Variables de entorno en el sistema de compilacion
+- Las redes WiFi (redes.json) tienen el mismo problema
+- Objetivo: poder compilar y subir el firmware desde cualquier equipo
+  sin tener que recrear archivos de configuracion manualmente
+
+## Configuracion centralizada de credenciales
+- Las credenciales del ESP32 (API_KEY, DATABASE_URL, OTA_PASSWORD, etc)
+  actualmente se guardan localmente en config.h y se pierden al cambiar equipo
+- Evaluar opciones para centralizar la configuracion:
+  - Repositorio privado solo para configs (config-agro)
+  - Firebase Remote Config para leer credenciales desde la nube
+  - Script que descargue config.h desde un servidor seguro al compilar
+  - Variables de entorno en el sistema de compilacion
+- Las redes WiFi (redes.json) tienen el mismo problema
+- Objetivo: poder compilar y subir el firmware desde cualquier equipo
+  sin tener que recrear archivos de configuracion manualmente
+
+## Configuracion centralizada de credenciales
+- Las credenciales del ESP32 (API_KEY, DATABASE_URL, OTA_PASSWORD, etc)
+  actualmente se guardan localmente en config.h y se pierden al cambiar equipo
+- Evaluar opciones para centralizar la configuracion:
+  - Repositorio privado solo para configs (config-agro)
+  - Firebase Remote Config para leer credenciales desde la nube
+  - Script que descargue config.h desde un servidor seguro al compilar
+  - Variables de entorno en el sistema de compilacion
+- Las redes WiFi (redes.json) tienen el mismo problema
+- Objetivo: poder compilar y subir el firmware desde cualquier equipo
+  sin tener que recrear archivos de configuracion manualmente
